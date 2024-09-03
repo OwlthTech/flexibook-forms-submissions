@@ -57,7 +57,7 @@ class Fbf_Submissions_Admin
 		$this->version = $version;
 		// Add screen options
 		add_action('admin_menu', [$this, 'add_menu_items']);
-		
+		add_action("admin_init", array($this, 'clean_up_admin_url'));
 	}
 
 	/**
@@ -124,6 +124,7 @@ class Fbf_Submissions_Admin
 
 		// Add the screen option to menu item ($fbf_menu_hook) page
 		add_action("load-$fbf_menu_hook", array($this, 'add_screen_options'));
+		
 	}
 
 	/**
@@ -134,27 +135,21 @@ class Fbf_Submissions_Admin
 		global $list_table;
 
 		$screen = get_current_screen();
-		if ( ! is_object( $screen ) || $screen->id !== 'toplevel_page_fbf-submissions' ) {
-		    return;
+		if (!is_object($screen) || $screen->id !== 'toplevel_page_fbf-submissions') {
+			return;
 		}
-    
-		$args = [
-		    'label'   => __( 'Submissions per page', 'flexibook-forms' ),
-		    'default' => 5,
-		    'option'  => 'submissions_per_page'
-		];
-		add_screen_option( 'per_page', $args );
 
-		
+		$args = [
+			'label' => __('Submissions per page', 'flexibook-forms'),
+			'default' => 5,
+			'option' => 'submissions_per_page'
+		];
+		add_screen_option('per_page', $args);
+
 		$list_table = new Fbf_Submissions_List_Table();
 
 	}
 
-	public function set_screen_options($status, $option, $value){
-		// var_dump($value);
-		//exit;
-		return $value;
-	}
 	/**
 	 * Render the list page.
 	 */
@@ -163,17 +158,32 @@ class Fbf_Submissions_Admin
 		global $list_table;
 		// Instantiate the list table class
 		$list_table = new Fbf_Submissions_List_Table();
-		
 		echo '<div class="wrap">';
 		echo '<h1 class="wp-heading-inline">' . __('Form Submissions', 'flexibook-forms') . '</h1>';
 		echo "<form id='submissions-form' method='get'>";
-		// Add a nonce for security
-		wp_nonce_field('bulk-submissions');
+		// wp_nonce_field('bulk-submissions', '_wpnonce', false);
 		$list_table->prepare_items();
-		// Table process
 		$list_table->search_box('search', 'submissions');
 		$list_table->display();
 		echo '</form>';
 		echo '</div>';
+	}
+
+	/**
+	 * Clean up URL parameters after actions.
+	 */
+	public function clean_up_admin_url()
+	{
+		// Check if we are in the admin area and on the specific page
+		if (is_admin() && isset($_GET['page']) && $_GET['page'] === 'fbf-submissions') {
+			// Remove unwanted query parameters
+			if (isset($_GET['_wp_http_referer']) || isset($_GET['submission']) || isset($_GET['action2'])) {
+				ob_start();
+				$redirect_url = remove_query_arg(['_wp_http_referer', 'submission', 'action2'], $_SERVER['REQUEST_URI']);
+				wp_redirect($redirect_url);
+				ob_clean();
+				// exit;
+			}
+		}
 	}
 }
