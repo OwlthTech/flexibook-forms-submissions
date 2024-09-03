@@ -1,0 +1,22 @@
+/**
+ * All of the CSS for your admin-specific functionality should be
+ * included in this file.
+ */
+
+ form#search-form {
+    display: flex;
+    width: -webkit-fill-available;
+    justify-content: space-between;
+    flex-direction: row-reverse;
+    align-items: center;
+}
+
+.search-results {
+        display: flex;
+        align-items: center;
+
+        & > strong {
+            margin-right: 1.5rem;
+            margin-left: .5rem;
+        }
+}
