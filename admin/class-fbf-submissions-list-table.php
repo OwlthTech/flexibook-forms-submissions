@@ -32,10 +32,11 @@ class Fbf_Submissions_List_Table extends WP_List_Table
         // Handle the search query if it exists
         $search = (isset($_REQUEST['s'])) ? wp_unslash(trim($_REQUEST['s'])) : '';
 
+        $hidden = get_hidden_columns(get_current_screen());
         // Set column headers
         $this->_column_headers = array(
             $this->get_columns(),
-            array(),
+            $hidden,
             $this->get_sortable_columns()
         );
 
@@ -119,6 +120,15 @@ class Fbf_Submissions_List_Table extends WP_List_Table
             'date_submitted' => __('Date Submitted', 'fbf-submissions'),
             'actions' => __('Actions', 'fbf-submissions')
         );
+
+        // Respect the screen options settings for column visibility
+        // $screen = get_current_screen();
+        // foreach ($columns as $column_key => $column_name) {
+        //     $option_name = "manage_{$screen->id}_column_{$column_key}";
+        //     if (get_user_meta(get_current_user_id(), $option_name, true) === false) {
+        //         unset($columns[$column_key]); // Remove column if it's set to be hidden
+        //     }
+        // }
 
         return $columns;
     }
@@ -288,7 +298,7 @@ class Fbf_Submissions_List_Table extends WP_List_Table
         $search_query = isset($_REQUEST['s']) ? esc_attr($_REQUEST['s']) : ''; // Get the current search query
 
         // Add any additional hidden fields necessary to maintain context
-        foreach ($_POST as $key => $value) {
+        foreach ($_GET as $key => $value) {
             if ('s' !== $key) { // Do not include the search parameter, it is added separately
                 echo '<input type="hidden" name="' . esc_attr($key) . '" value="' . esc_attr($value) . '" />';
             }

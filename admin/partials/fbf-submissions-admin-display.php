@@ -15,34 +15,24 @@
 
 <!-- This file should primarily consist of HTML with a little bit of PHP. -->
 
-<?php 
-    // Access the global $list_table variable
-    global $list_table;
-    $list_table = new Fbf_Submissions_List_Table();
-
-
-?>
-
 <div class="wrap">
-    <h2><?php _e( 'Custom List Table Example', 'fbf-submissions' ); ?></h2>
+    <h2><?php _e('Custom List Table Example', 'fbf-submissions'); ?></h2>
     <form method="get">
         <!-- Preserve the current page parameter -->
         <input type="hidden" name="page" value="fbf-submissions" />
+
         <!-- Include the nonce field for security -->
-        <?php wp_nonce_field( 'bulk-submissions' ); ?>
+        <?php wp_nonce_field('bulk-submissions'); ?>
 
         <?php 
-            
-            $list_table->prepare_items();
-            
-            // Display the search box with the correct form method
-            $list_table->search_box( __( 'Search Submissions', 'fbf-submissions' ), 'submission' );
-
-            // Display the table with bulk actions
-            $list_table->display();
+        // Prepare items and display table
+        $this->list_table->prepare_items(); 
+        $this->list_table->search_box(__('Search Submissions', 'fbf-submissions'), 'submission');
+        $this->list_table->display(); 
         ?>
     </form>
 </div>
+
 
 
 

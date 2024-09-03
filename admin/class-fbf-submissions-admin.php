@@ -20,6 +20,9 @@
  * @subpackage Fbf_Submissions/admin
  * @author     Owlth Tech <owlthtech@gmail.com>
  */
+// Instantiate the list table class
+require_once plugin_dir_path(__FILE__) . 'class-fbf-submissions-list-table.php';
+
 class Fbf_Submissions_Admin
 {
 
@@ -50,10 +53,11 @@ class Fbf_Submissions_Admin
 	 */
 	public function __construct($plugin_name, $version)
 	{
-
 		$this->plugin_name = $plugin_name;
 		$this->version = $version;
-
+		// Add screen options
+		add_action('admin_menu', [$this, 'add_menu_items']);
+		
 	}
 
 	/**
@@ -106,20 +110,70 @@ class Fbf_Submissions_Admin
 
 	public function add_menu_items()
 	{
-		add_menu_page(
-			__('FlexiBook Submissions', 'fbf-submissions'),
-			__('FlexiBook Submissions', 'fbf-submissions'),
+		global $fbf_menu_hook;
+
+		// Add menu item
+		$fbf_menu_hook = add_menu_page(
+			__('FBF Submissions', 'fbf-submissions'),
+			__('FBF Submissions', 'fbf-submissions'),
 			'manage_options',
 			'fbf-submissions',
-			array($this, 'render_list_page')
+			array($this, 'render_list_page'),
+			'dashicons-email'
 		);
+
+		// Add the screen option to menu item ($fbf_menu_hook) page
+		add_action("load-$fbf_menu_hook", array($this, 'add_screen_options'));
 	}
 
+	/**
+	 * Add screen options to the plugin page.
+	 */
+	public function add_screen_options()
+	{
+		global $list_table;
+
+		$screen = get_current_screen();
+		if ( ! is_object( $screen ) || $screen->id !== 'toplevel_page_fbf-submissions' ) {
+		    return;
+		}
+    
+		$args = [
+		    'label'   => __( 'Submissions per page', 'flexibook-forms' ),
+		    'default' => 5,
+		    'option'  => 'submissions_per_page'
+		];
+		add_screen_option( 'per_page', $args );
+
+		
+		$list_table = new Fbf_Submissions_List_Table();
+
+	}
+
+	public function set_screen_options($status, $option, $value){
+		// var_dump($value);
+		//exit;
+		return $value;
+	}
+	/**
+	 * Render the list page.
+	 */
 	public function render_list_page()
 	{
-		require_once plugin_dir_path(__FILE__) . 'class-fbf-submissions-list-table.php';
+		global $list_table;
+		// Instantiate the list table class
+		$list_table = new Fbf_Submissions_List_Table();
 		
-		include plugin_dir_path(__FILE__) . 'partials/fbf-submissions-admin-display.php';
+		echo '<div class="wrap">';
+		echo '<h1 class="wp-heading-inline">' . __('Form Submissions', 'flexibook-forms') . '</h1>';
+		echo "<form id='submissions-form' method='get'>";
+		// Add a nonce for security
+		wp_nonce_field('bulk-submissions');
+		$list_table->prepare_items();
+		// Table process
+		$list_table->search_box('search', 'submissions');
+		$list_table->display();
+		echo '</form>';
+		echo '</div>';
 	}
-
 }
