@@ -22,7 +22,7 @@
  */
 // Instantiate the list table class
 require_once plugin_dir_path(__FILE__) . 'class-fbf-submissions-list-table.php';
-
+// require_once plugin_dir_path(__FILE__) . 'class-fbf-submissions-list-table.php';
 class Fbf_Submissions_Admin
 {
 
@@ -57,7 +57,6 @@ class Fbf_Submissions_Admin
 		$this->version = $version;
 		// Add screen options
 		add_action('admin_menu', [$this, 'add_menu_items']);
-		add_action("wp_loaded", array($this, 'clean_up_admin_url'));
 	}
 
 	/**
@@ -108,22 +107,90 @@ class Fbf_Submissions_Admin
 
 	}
 
+	/**
+	 * Register the custom post type for submissions.
+	 */
+	public function fbf_register_submission_post_type()
+	{
+		$labels = array(
+			'name' => _x('Submissions', 'Post Type General Name', 'fbf-submissions'),
+			'singular_name' => _x('Submission', 'Post Type Singular Name', 'fbf-submissions'),
+			'menu_name' => __('Submissions', 'fbf-submissions'),
+			'name_admin_bar' => __('Submission', 'fbf-submissions'),
+			'edit_item' => __('View Submission', 'fbf-submissions'), // "Edit" changed to "View"
+			'view_item' => __('View Submission', 'fbf-submissions'),
+			'search_items' => __('Search Submissions', 'fbf-submissions'),
+			'not_found' => __('No submissions found', 'fbf-submissions'),
+			'not_found_in_trash' => __('No submissions found in Trash', 'fbf-submissions'),
+		);
+
+		$args = array(
+			'label' => __('Submissions', 'fbf-submissions'),
+			'labels' => $labels,
+			'supports' => array('custom-fields', 'comments'), // Support custom fields and comments for notes
+			'public' => false, // Make it private
+			'show_ui' => true,
+			'show_in_menu' => true,
+			'exclude_from_search' => true,
+			'publicly_queryable' => false,
+			'capability_type' => 'post',
+			'capabilities' => array(
+				'edit_post' => 'manage_options',
+				'edit_posts' => 'manage_options',
+				'edit_others_posts' => 'manage_options',
+				'publish_posts' => 'manage_options',
+				'read_post' => 'manage_options',
+				'read_private_posts' => 'manage_options',
+				'delete_post' => false,
+			),
+			'menu_icon' => 'dashicons-email',
+		);
+
+		register_post_type('submissions', $args);
+	}
+
+	/**
+	 * Add menu items for the plugin.
+	 */
 	public function add_menu_items()
 	{
-		global $fbf_menu_hook;
-
-		// Add menu item
-		$fbf_menu_hook = add_menu_page(
-			__('FBF Submissions', 'fbf-submissions'),
-			__('FBF Submissions', 'fbf-submissions'),
+		$hook = add_menu_page(
+			__('Form Submissions', 'fbf-submissions'),
+			__('Form Submissions', 'fbf-submissions'),
 			'manage_options',
 			'fbf-submissions',
-			array($this, 'render_list_page'),
+			[$this, 'render_list_page'],
 			'dashicons-email'
 		);
 
-		// Add the screen option to menu item ($fbf_menu_hook) page
-		add_action("load-$fbf_menu_hook", array($this, 'add_screen_options'));
+		// Add the screen option to menu item page
+		add_action("load-$hook", [$this, 'add_screen_options']);
+	}
+
+	/**
+	 * Render the list page.
+	 */
+	public function render_list_page()
+	{
+		// Handle the view action and mark as read
+		// if (isset($_GET['action']) && $_GET['action'] === 'view' && isset($_GET['post'])) {
+		// 	$post_id = intval($_GET['post']);
+		// 	update_post_meta($post_id, '_submission_status', 'read'); // Mark as read when viewed
+		// }
+
+		
+		$list_table = new Fbf_Submissions_List_Table();
+		
+		echo '<div class="wrap">';
+		echo '<h1 class="wp-heading-inline">' . __('Form Submissions', 'flexibook-forms') . '</h1>';
+		echo "<form id='submissions-form' method='get'>";
+		wp_nonce_field('bulk-submissions', '_wpnonce', false);
+		$list_table->prepare_items();
+		$list_table->search_box('search', 'submissions');
+		$list_table->display();
+		echo '</form>';
+		echo '</div>';
+
 
 	}
 
@@ -148,74 +215,6 @@ class Fbf_Submissions_Admin
 
 		$list_table = new Fbf_Submissions_List_Table();
 
-	}
-
-	/**
-	 * Render the list page.
-	 */
-	public function render_list_page()
-	{
-		// $this->clean_up_admin_url();
-		global $list_table;
-		// Instantiate the list table class
-		$list_table = new Fbf_Submissions_List_Table();
-		echo '<div class="wrap">';
-		echo '<h1 class="wp-heading-inline">' . __('Form Submissions', 'flexibook-forms') . '</h1>';
-		echo "<form id='submissions-form' method='get'>";
-		// wp_nonce_field('bulk-submissions', '_wpnonce', false);
-		$list_table->prepare_items();
-		$list_table->search_box('search', 'submissions');
-		$list_table->display();
-		echo '</form>';
-		echo '</div>';
-	}
-
-	/**
-	 * Clean up URL parameters after actions.
-	 */
-	public function clean_up_admin_url()
-	{
-		// Check if we are on the specific admin page
-		if (is_admin() && isset($_GET['page']) && $_GET['page'] === 'fbf-submissions') {
-			// Prepare the base URL without unwanted parameters
-			$redirect_url = $this->prepare_redirect_url(admin_url('admin.php?page=fbf-submissions'));
-
-			// Check if the current URL contains any of the unwanted parameters
-			if (isset($_GET['_wp_http_referer']) || isset($_GET['submission']) || isset($_GET['action2'])) {
-				// Only redirect if unwanted parameters are found
-				wp_redirect($redirect_url);
-				// Stop further execution to prevent loops
-				return;
-			}
-		}
-	}
-
-	/**
-	 * Prepare redirect URL with existing query parameters.
-	 */
-	public function prepare_redirect_url($base_url)
-	{
-		// Remove specific query parameters if they exist
-		$base_url = remove_query_arg(['_wp_http_referer', 'action2'], $base_url);
-
-		if (!isset($_GET['page'])) {
-			$base_url = add_query_arg('page', sanitize_text_field($_GET['fbf-submissions']), $base_url);
-		}
-
-		// Conditionally add existing parameters like 'orderby', 'order', 's' if they exist
-		if (isset($_GET['orderby'])) {
-			$base_url = add_query_arg('orderby', sanitize_text_field($_GET['orderby']), $base_url);
-		}
-
-		if (isset($_GET['order'])) {
-			$base_url = add_query_arg('order', sanitize_text_field($_GET['order']), $base_url);
-		}
-
-		if (isset($_GET['s']) && !empty(trim($_GET['s']))) {
-			$base_url = add_query_arg('s', sanitize_text_field($_GET['s']), $base_url);
-		}
-
-		return $base_url;
 	}
 
 }
