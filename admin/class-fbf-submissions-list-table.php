@@ -18,6 +18,7 @@ class Fbf_Submissions_List_Table extends WP_List_Table
             'ajax' => false  // Does this table support ajax?
         ));
 
+        // Hook to display admin notices
         add_action('admin_notices', [$this, 'display_admin_notices']);
 
     }
@@ -26,15 +27,14 @@ class Fbf_Submissions_List_Table extends WP_List_Table
      * Prepare the list of items for displaying.
      */
     public function prepare_items()
-    {
-        
+    {        
         $per_page = $this->get_items_per_page('submissions_per_page', 10);
         $current_page = $this->get_pagenum();
         $total_items = $this->get_total_items();
-
+        
         // Handle the search query if it exists
         $search = isset($_REQUEST['s']) ? wp_unslash(trim($_REQUEST['s'])) : '';
-
+        
         $hidden = get_hidden_columns(get_current_screen());
         // Set column headers
         $this->_column_headers = array(
@@ -42,12 +42,10 @@ class Fbf_Submissions_List_Table extends WP_List_Table
             $hidden,
             $this->get_sortable_columns()
         );
-
         
         // Process bulk actions if any
-        ob_start();
         $this->process_bulk_action();
-        ob_clean();
+
         // Fetch data and set pagination arguments
         $data = $this->fetch_submissions_data($per_page, $current_page, $search);
         $this->items = $data;
@@ -58,7 +56,7 @@ class Fbf_Submissions_List_Table extends WP_List_Table
             'total_pages' => ceil($total_items / $per_page)
         ));
     }
-    
+
 
     /**
      * Fetch data for the table.
@@ -165,77 +163,118 @@ class Fbf_Submissions_List_Table extends WP_List_Table
 
     public function process_bulk_action()
     {
-        // Detect the bulk action
+        // Detect the current action
         $action = $this->current_action();
-        // ob_start();
-        if ($action === 'delete') {
-            // Check for nonce
-            $nonce = isset($_REQUEST['_wpnonce']) ? sanitize_text_field($_REQUEST['_wpnonce']) : '';
 
-            if (!wp_verify_nonce($nonce, 'bulk-submissions')) {
-                $redirect_url = add_query_arg('message', 'error', admin_url('admin.php?page=fbf-submissions'));
-                wp_die(__('Nope! Security check failed.', 'fbf-submissions'));
-            } else {
-                // self::delete_submission(absint($_GET['submission']));
-                // ob_clean();
-                $redirect_url = add_query_arg('message', 'deleted', admin_url('admin.php?page=fbf-submissions'));
-                ob_start();
-                wp_redirect($redirect_url);
-                ob_clean();
-            }
+        // Verify nonce first
+        if (isset($_GET['_wpnonce']) && !wp_verify_nonce($_GET['_wpnonce'], 'bulk-submissions')) {
+            $this->set_admin_notice(__('Security check failed.', 'flexibook-forms'), 'error');
+            return;
         }
 
-        // Handle the bulk delete action
-        if ($action === 'bulk-delete') {
-            // Check for nonce
-            $nonce = isset($_REQUEST['_wpnonce']) ? sanitize_text_field($_REQUEST['_wpnonce']) : '';
+        $action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : '';
+        $action2 = isset($_GET['action2']) ? sanitize_text_field($_GET['action2']) : '';
 
-            // Verify nonce for security
-            if ( !wp_verify_nonce( $nonce, 'bulk-' . $this->_args['plural'] ) ) {
-                $redirect_url = add_query_arg('message', 'error', admin_url('admin.php?page=fbf-submissions'));
-                wp_die(__('Security check failed.', 'fbf-submissions'));
-            }
+        if ($action === 'delete' || $action2 === 'delete') {
+            $this->delete_submission();
+        }
 
-            // Get submission IDs
-            $submission_ids = isset($_REQUEST['submission']) ? array_map('intval', $_REQUEST['submission']) : [];
-
-            // Perform deletion
-            foreach ($submission_ids as $id) {
-                // $this->delete_submission($id); // Define this function to handle deletion
-            }
-            $redirect_url = add_query_arg('message', 'bulk-deleted', admin_url('admin.php?page=fbf-submissions'));
-            ob_start();
-            wp_redirect($redirect_url);
-            ob_clean();
+        if ($action === 'bulk-delete' || $action2 === 'bulk-delete') {
+            $this->bulk_delete_submissions();
         }
 
     }
 
-    public function display_admin_notices() {
-        if (isset($_GET['message'])) {
-            $message = sanitize_text_field($_GET['message']);
-    
-            if ($message === 'deleted') {
-                echo '<div class="notice notice-success is-dismissible"><p>' . __('Submission deleted successfully.', 'fbf-submissions') . '</p></div>';
-            } elseif ($message === 'bulk-deleted') {
-                echo '<div class="notice notice-success is-dismissible"><p>' . __('Submissions deleted successfully.', 'fbf-submissions') . '</p></div>';
-            } elseif ($message === 'error') {
-                echo '<div class="notice notice-error is-dismissible"><p>' . __('There was an error processing the request.', 'fbf-submissions') . '</p></div>';
-            }
+
+    public function delete_submission()
+    {
+        if (!isset($_GET['submission'])) {
+            $this->set_admin_notice(__('No submission ID provided.', 'flexibook-forms'), 'error');
+            return;
+        }
+
+        $submission_id = intval($_REQUEST['submission']);
+        echo 'SUbmission id:'. $submission_id .'';
+        $deleted = $this->perform_delete_submission($submission_id);
+
+        if ($deleted) {
+            $this->set_admin_notice(__('Submission deleted successfully.', 'flexibook-forms'), 'success');
+        } else {
+            $this->set_admin_notice(__('Failed to delete submission.', 'flexibook-forms'), 'error');
         }
     }
 
-    public static function delete_submission($id)
+    private function perform_delete_submission($submission_id): bool
     {
         global $wpdb;
-
+    
         $table_name = $wpdb->prefix . 'fbf_submissions';
-
-        $wpdb->delete(
+    
+        // Perform the deletion using $wpdb->delete() and check the result
+        $result = $wpdb->delete(
             $table_name,
-            ['id' => $id],
+            ['id' => $submission_id],
             ['%d']
         );
+    
+        // Return true if deletion was successful, false otherwise
+        return ($result !== false);
+    }
+    
+
+    public function bulk_delete_submissions()
+    {
+        if (empty($_REQUEST['submission'])) {
+            $this->set_admin_notice(__('No submissions selected for deletion.', 'flexibook-forms'), 'error');
+            return;
+        }
+
+        $submission_ids = isset($_REQUEST['submission']) ? array_map('intval', $_REQUEST['submission']) : [];
+        $deleted_count = $this->perform_bulk_delete_submissions($submission_ids);
+        echo 'SUbmission id:'. $submission_ids .'';
+
+        if ($deleted_count > 0) {
+            $this->set_admin_notice(sprintf(__('%d submissions deleted successfully.', 'flexibook-forms'), $deleted_count), 'success');
+        } else {
+            $this->set_admin_notice(__('No submissions were deleted.', 'flexibook-forms'), 'error');
+            // echo '<div class="notice notice-error is-dismissible"><p>' . __('There was an error processing the request.', 'fbf-submissions') . '</p></div>';
+        }
+    }
+
+    private function perform_bulk_delete_submissions($submission_ids)
+    {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'fbf_submissions';
+        foreach ($submission_ids as $id) {
+            $wpdb->delete($table_name, ['id' => $id], ['%d']);
+        }
+        return count($submission_ids); // Assume all were deleted successfully
+    }
+
+
+    // public function display_admin_notices()
+    // {
+    //     if (isset($_GET['message'])) {
+    //         $message = sanitize_text_field($_GET['message']);
+
+    //         if ($message === 'deleted') {
+    //             echo '<div class="notice notice-success is-dismissible"><p>' . __('Submission deleted successfully.', 'fbf-submissions') . '</p></div>';
+    //         } elseif ($message === 'bulk-deleted') {
+    //             echo '<div class="notice notice-success is-dismissible"><p>' . __('Submissions deleted successfully.', 'fbf-submissions') . '</p></div>';
+    //         } elseif ($message === 'error') {
+    //             echo '<div class="notice notice-error is-dismissible"><p>' . __('There was an error processing the request.', 'fbf-submissions') . '</p></div>';
+    //         }
+    //     }
+    // }
+
+    public function set_admin_notice($message, $type = 'info')
+    {
+        add_settings_error('fbf_submissions_notices', esc_attr('settings_updated'), $message, $type);
+    }
+
+    public function display_admin_notices()
+    {
+        settings_errors('fbf_submissions_notices');
     }
 
 
@@ -324,9 +363,9 @@ class Fbf_Submissions_List_Table extends WP_List_Table
         $search_query = isset($_REQUEST['s']) ? esc_attr($_REQUEST['s']) : ''; // Get the current search query
 
         // Add any additional hidden fields necessary to maintain context
-        
+
         foreach ($_REQUEST as $key => $value) {
-            if(!$key === 's' || !is_array($value)) {
+            if (!$key === 's' || !is_array($value)) {
                 echo '<input type="hidden" name="' . esc_attr($key) . '" value="' . esc_attr($value) . '" />';
             }
         }

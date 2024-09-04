@@ -57,7 +57,7 @@ class Fbf_Submissions_Admin
 		$this->version = $version;
 		// Add screen options
 		add_action('admin_menu', [$this, 'add_menu_items']);
-		add_action("admin_init", array($this, 'clean_up_admin_url'));
+		add_action("wp_loaded", array($this, 'clean_up_admin_url'));
 	}
 
 	/**
@@ -124,7 +124,7 @@ class Fbf_Submissions_Admin
 
 		// Add the screen option to menu item ($fbf_menu_hook) page
 		add_action("load-$fbf_menu_hook", array($this, 'add_screen_options'));
-		
+
 	}
 
 	/**
@@ -155,6 +155,7 @@ class Fbf_Submissions_Admin
 	 */
 	public function render_list_page()
 	{
+		// $this->clean_up_admin_url();
 		global $list_table;
 		// Instantiate the list table class
 		$list_table = new Fbf_Submissions_List_Table();
@@ -174,16 +175,47 @@ class Fbf_Submissions_Admin
 	 */
 	public function clean_up_admin_url()
 	{
-		// Check if we are in the admin area and on the specific page
+		// Check if we are on the specific admin page
 		if (is_admin() && isset($_GET['page']) && $_GET['page'] === 'fbf-submissions') {
-			// Remove unwanted query parameters
+			// Prepare the base URL without unwanted parameters
+			$redirect_url = $this->prepare_redirect_url(admin_url('admin.php?page=fbf-submissions'));
+
+			// Check if the current URL contains any of the unwanted parameters
 			if (isset($_GET['_wp_http_referer']) || isset($_GET['submission']) || isset($_GET['action2'])) {
-				ob_start();
-				$redirect_url = remove_query_arg(['_wp_http_referer', 'submission', 'action2'], $_SERVER['REQUEST_URI']);
+				// Only redirect if unwanted parameters are found
 				wp_redirect($redirect_url);
-				ob_clean();
-				// exit;
+				// Stop further execution to prevent loops
+				return;
 			}
 		}
 	}
+
+	/**
+	 * Prepare redirect URL with existing query parameters.
+	 */
+	public function prepare_redirect_url($base_url)
+	{
+		// Remove specific query parameters if they exist
+		$base_url = remove_query_arg(['_wp_http_referer', 'action2'], $base_url);
+
+		if (!isset($_GET['page'])) {
+			$base_url = add_query_arg('page', sanitize_text_field($_GET['fbf-submissions']), $base_url);
+		}
+
+		// Conditionally add existing parameters like 'orderby', 'order', 's' if they exist
+		if (isset($_GET['orderby'])) {
+			$base_url = add_query_arg('orderby', sanitize_text_field($_GET['orderby']), $base_url);
+		}
+
+		if (isset($_GET['order'])) {
+			$base_url = add_query_arg('order', sanitize_text_field($_GET['order']), $base_url);
+		}
+
+		if (isset($_GET['s']) && !empty(trim($_GET['s']))) {
+			$base_url = add_query_arg('s', sanitize_text_field($_GET['s']), $base_url);
+		}
+
+		return $base_url;
+	}
+
 }
